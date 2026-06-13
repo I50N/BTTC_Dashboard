@@ -133,6 +133,9 @@
     opacity:0.7;
     margin-top:1px;
   }
+  .band-legend{display:flex;gap:20px;justify-content:center;flex-wrap:wrap;}
+  .legend-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);}
+  .legend-swatch{width:14px;height:14px;border-radius:3px;flex-shrink:0;}
   .legend{
     display:flex;
     align-items:center;
@@ -207,6 +210,16 @@
   </div>
 </div>
 
+<h2>Outcome Quality by Hour</h2>
+<div class="heatmap-wrap">
+  <canvas id="outcomeChart"></canvas>
+  <div class="band-legend" style="margin-top:12px;">
+    <div class="legend-row"><div class="legend-swatch" style="background:#3ddc97"></div><div class="legend-label">Connect Rate %</div></div>
+    <div class="legend-row"><div class="legend-swatch" style="background:#ffc857"></div><div class="legend-label">Sale % of Connects</div></div>
+    <div class="legend-row"><div class="legend-swatch" style="background:#ff5d5d"></div><div class="legend-label">Negative % of Connects</div></div>
+  </div>
+</div>
+
 <h2>Top 5 Best Time Slots</h2>
 <table class="summary-table" id="bestTable">
   <thead><tr><th>Day</th><th>Hour</th><th>Attempts</th><th>Answered</th><th>Connect Rate</th></tr></thead>
@@ -229,7 +242,10 @@
 // ---- CONFIG ----
 // Point this at the raw GitHub URL of your BTTC CSV, e.g.
 // https://raw.githubusercontent.com/<user>/<repo>/main/BTTC.csv
-const CSV_URL = "https://raw.githubusercontent.com/I50N/BTTC_Dashboard/refs/heads/main/BTTC.csv";
+const CSV_URL = "";
+
+// Outcome mix by hour - point this at your Outcome_Report.csv raw GitHub URL
+const OUTCOME_CSV_URL = "";
 
 const FALLBACK_CSV = `campaign_name,day_of_week,hour_of_day,attempts,answered,connect_rate
 NMS Waiver,0,9,1,0,0.00
@@ -308,6 +324,117 @@ NMS Waiver,6,13,697,72,10.33
 NMS Waiver,6,15,1,0,0.00
 NMS Waiver,6,18,2,0,0.00
 NMS Waiver,6,19,1,0,0.00`;
+
+const OUTCOME_FALLBACK_CSV = `campaign_name,hour_of_day,attempts,sales,dmc,negative_outcomes,answered,sale_pct_of_connects,negative_pct_of_connects
+NMS Waiver,8,148293,429,6519,3917,16343,2.62,23.97
+NMS Waiver,9,186661,391,6057,3899,16596,2.36,23.49
+NMS Waiver,10,162405,291,4858,4505,15137,1.92,29.76
+NMS Waiver,11,205177,303,5703,4979,17548,1.73,28.37
+NMS Waiver,12,219573,283,5703,4852,17387,1.63,27.91
+NMS Waiver,13,71152,49,1376,3881,6664,0.74,58.24
+NMS Waiver,14,154189,298,5505,4623,15885,1.88,29.10
+NMS Waiver,15,162602,277,5272,4749,16096,1.72,29.50
+NMS Waiver,16,179633,269,5236,4304,16007,1.68,26.89
+NMS Waiver,17,73787,73,1754,2125,6610,1.10,32.15
+NMS Waiver,18,6407,0,4,886,891,0.00,99.44`;
+
+let outcomeRows = [];
+
+function parseOutcomeCSV(text){
+  const lines = text.trim().split(/\r?\n/);
+  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim());
+  return lines.slice(1).map(line => {
+    const vals = line.split(',').map(v => v.replace(/^"|"$/g,'').trim());
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = vals[i]);
+    obj.hour_of_day = parseInt(obj.hour_of_day);
+    obj.attempts = parseInt(obj.attempts) || 0;
+    obj.answered = parseInt(obj.answered) || 0;
+    obj.sale_pct_of_connects = parseFloat(obj.sale_pct_of_connects) || 0;
+    obj.negative_pct_of_connects = parseFloat(obj.negative_pct_of_connects) || 0;
+    obj.connect_rate = obj.attempts > 0 ? (obj.answered/obj.attempts*100) : 0;
+    return obj;
+  });
+}
+
+function drawOutcomeChart(){
+  const campaign = document.getElementById('campaignFilter').value;
+  let data = outcomeRows
+    .filter(r => campaign === '' || r.campaign_name === campaign)
+    .filter(r => r.hour_of_day >= DIAL_START_HOUR && r.hour_of_day <= DIAL_END_HOUR)
+    .sort((a,b) => a.hour_of_day - b.hour_of_day);
+
+  const canvas = document.getElementById('outcomeChart');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.clientWidth || 760;
+  const cssH = 260;
+  canvas.width = cssW * dpr;
+  canvas.height = cssH * dpr;
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const w = cssW, h = cssH;
+  ctx.clearRect(0,0,w,h);
+
+  if(data.length === 0) return;
+
+  const margin = {top:20,right:20,bottom:35,left:45};
+  const chartW = w - margin.left - margin.right;
+  const chartH = h - margin.top - margin.bottom;
+
+  // y-axis: 0-100
+  ctx.strokeStyle = '#2a343b';
+  ctx.fillStyle = '#8aa0ab';
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'right';
+  for(let p=0; p<=100; p+=25){
+    const y = margin.top + chartH - (p/100)*chartH;
+    ctx.beginPath();
+    ctx.moveTo(margin.left, y);
+    ctx.lineTo(w-margin.right, y);
+    ctx.stroke();
+    ctx.fillText(p+'%', margin.left-8, y+3);
+  }
+
+  const xStep = chartW / (data.length - 1 || 1);
+  const series = [
+    { key:'connect_rate', color:'#3ddc97' },
+    { key:'sale_pct_of_connects', color:'#ffc857' },
+    { key:'negative_pct_of_connects', color:'#ff5d5d' }
+  ];
+
+  series.forEach(s => {
+    ctx.beginPath();
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = 2;
+    data.forEach((r,i) => {
+      const x = margin.left + i*xStep;
+      const y = margin.top + chartH - (Math.min(r[s.key],100)/100)*chartH;
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+    // points
+    data.forEach((r,i) => {
+      const x = margin.left + i*xStep;
+      const y = margin.top + chartH - (Math.min(r[s.key],100)/100)*chartH;
+      ctx.beginPath();
+      ctx.arc(x,y,3,0,Math.PI*2);
+      ctx.fillStyle = s.color;
+      ctx.fill();
+    });
+  });
+
+  // x labels
+  ctx.fillStyle = '#8aa0ab';
+  ctx.font = '12px sans-serif';
+  ctx.textAlign = 'center';
+  data.forEach((r,i) => {
+    const x = margin.left + i*xStep;
+    ctx.fillText(r.hour_of_day+':00', x, margin.top+chartH+18);
+  });
+}
+
 
 const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const HOURS = Array.from({length:24}, (_,i) => i);
@@ -454,6 +581,8 @@ function render(){
       <td class="rank-worst">${r.rate.toFixed(2)}%</td>
     </tr>
   `).join('');
+
+  drawOutcomeChart();
 }
 
 function setStatus(msg, isError){
@@ -463,6 +592,13 @@ function setStatus(msg, isError){
 }
 
 async function reload(){
+  outcomeRows = parseOutcomeCSV(OUTCOME_FALLBACK_CSV);
+  if(OUTCOME_CSV_URL){
+    try{
+      const res = await fetch(OUTCOME_CSV_URL + '?t=' + Date.now());
+      if(res.ok) outcomeRows = parseOutcomeCSV(await res.text());
+    }catch(e){ /* fall back to embedded */ }
+  }
   if(!CSV_URL){
     rows = parseCSV(FALLBACK_CSV);
     setStatus('Loaded embedded data (set CSV_URL to load live from GitHub).');
@@ -488,6 +624,7 @@ async function reload(){
 }
 
 document.getElementById('campaignFilter').addEventListener('change', render);
+window.addEventListener('resize', () => drawOutcomeChart());
 
 reload();
 </script>
