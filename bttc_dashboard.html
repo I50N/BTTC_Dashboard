@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Best Time To Call (BTTC) Dashboard</title>
+<style>
+  :root{
+    --bg:#0f1417;
+    --panel:#171d22;
+    --panel-2:#1e262c;
+    --line:#2a343b;
+    --text:#e8edf0;
+    --muted:#8aa0ab;
+    --accent:#ff6a3d;
+    --good:#3ddc97;
+    --warn:#ffc857;
+    --bad:#ff5d5d;
+    --mono:'JetBrains Mono','SF Mono',Consolas,monospace;
+    --sans:'Inter','Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:var(--sans);
+    background:var(--bg);
+    color:var(--text);
+    padding:24px;
+  }
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    flex-wrap:wrap;
+    gap:12px;
+    border-bottom:1px solid var(--line);
+    padding-bottom:16px;
+    margin-bottom:20px;
+  }
+  h1{
+    font-size:22px;
+    margin:0;
+    letter-spacing:0.5px;
+    font-weight:700;
+  }
+  h1 span{color:var(--accent);}
+  .sub{color:var(--muted);font-size:13px;margin-top:4px;}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  select{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    padding:8px 12px;
+    border-radius:6px;
+    font-family:var(--mono);
+    font-size:13px;
+  }
+  button{
+    background:var(--accent);
+    color:#1a0e08;
+    border:none;
+    padding:8px 14px;
+    border-radius:6px;
+    font-weight:700;
+    cursor:pointer;
+    font-size:13px;
+  }
+  button:hover{opacity:0.85;}
+  .summary{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(160px,1fr));
+    gap:12px;
+    margin-bottom:20px;
+  }
+  .card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:14px 16px;
+  }
+  .card .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .card .value{font-size:22px;font-weight:700;margin-top:6px;font-family:var(--mono);}
+  .card .value.small{font-size:15px;}
+  .heatmap-wrap{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:16px;
+    overflow-x:auto;
+    margin-bottom:20px;
+  }
+  table.heatmap{
+    border-collapse:collapse;
+    width:100%;
+    min-width:760px;
+    font-size:12px;
+    table-layout:fixed;
+  }
+  table.heatmap th, table.heatmap td{
+    border:1px solid var(--line);
+    text-align:center;
+    padding:6px 2px;
+  }
+  table.heatmap th{
+    color:var(--muted);
+    font-weight:600;
+    font-size:11px;
+  }
+  table.heatmap th.daylabel, table.heatmap td.daylabel{
+    text-align:left;
+    padding-left:10px;
+    color:var(--text);
+    font-weight:700;
+    width:90px;
+  }
+  .cell{
+    font-family:var(--mono);
+    font-weight:700;
+    cursor:default;
+    border-radius:4px;
+    color:#0f1417;
+    position:relative;
+  }
+  .cell.empty{
+    background:var(--panel-2);
+    color:var(--muted);
+    font-weight:400;
+  }
+  .cell .attempts{
+    display:block;
+    font-size:9px;
+    font-weight:400;
+    opacity:0.7;
+    margin-top:1px;
+  }
+  .legend{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-top:12px;
+    font-size:12px;
+    color:var(--muted);
+  }
+  .legend-gradient{
+    height:12px;
+    flex:1;
+    max-width:300px;
+    border-radius:4px;
+    background:linear-gradient(to right, #ff5d5d, #ffc857, #3ddc97);
+  }
+  table.summary-table{
+    width:100%;
+    border-collapse:collapse;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    overflow:hidden;
+    font-size:13px;
+  }
+  table.summary-table th, table.summary-table td{
+    padding:10px 12px;
+    text-align:left;
+    border-bottom:1px solid var(--line);
+  }
+  table.summary-table th{
+    background:var(--panel-2);
+    color:var(--muted);
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:1px;
+  }
+  td.rank-best{color:var(--good);font-weight:700;}
+  td.rank-worst{color:var(--bad);font-weight:700;}
+  .status{font-size:12px;color:var(--muted);margin-top:8px;}
+  footer{margin-top:30px;text-align:center;color:var(--muted);font-size:11px;}
+  h2{font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin:24px 0 10px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Best Time To <span>Call</span></h1>
+    <div class="sub">Connect rate by day of week &amp; hour of day</div>
+  </div>
+  <div class="controls">
+    <select id="campaignFilter">
+      <option value="">All campaigns</option>
+    </select>
+    <button onclick="reload()">Reload data</button>
+  </div>
+</header>
+
+<div class="summary">
+  <div class="card"><div class="label">Total Attempts</div><div class="value" id="statAttempts">-</div></div>
+  <div class="card"><div class="label">Total Answered</div><div class="value" id="statAnswered">-</div></div>
+  <div class="card"><div class="label">Overall Connect Rate</div><div class="value" id="statRate">-</div></div>
+  <div class="card"><div class="label">Best Slot</div><div class="value small" id="statBest">-</div></div>
+</div>
+
+<div class="heatmap-wrap">
+  <table class="heatmap" id="heatmapTable"></table>
+  <div class="legend">
+    <span>Lower connect rate</span>
+    <div class="legend-gradient"></div>
+    <span>Higher connect rate</span>
+  </div>
+</div>
+
+<h2>Top 5 Best Time Slots</h2>
+<table class="summary-table" id="bestTable">
+  <thead><tr><th>Day</th><th>Hour</th><th>Attempts</th><th>Answered</th><th>Connect Rate</th></tr></thead>
+  <tbody></tbody>
+</table>
+
+<h2 style="margin-top:24px;">Top 5 Worst Time Slots (min 50 attempts)</h2>
+<table class="summary-table" id="worstTable">
+  <thead><tr><th>Day</th><th>Hour</th><th>Attempts</th><th>Answered</th><th>Connect Rate</th></tr></thead>
+  <tbody></tbody>
+</table>
+
+<div class="status" id="status"></div>
+
+<footer>
+  Ison Xperiences · Best Time To Call Dashboard
+</footer>
+
+<script>
+// ---- CONFIG ----
+// Point this at the raw GitHub URL of your BTTC CSV, e.g.
+// https://raw.githubusercontent.com/<user>/<repo>/main/BTTC.csv
+const CSV_URL = "";
+
+const FALLBACK_CSV = `campaign_name,day_of_week,hour_of_day,attempts,answered,connect_rate
+NMS Waiver,0,9,1,0,0.00
+NMS Waiver,0,19,1,0,0.00
+NMS Waiver,1,7,13,5,38.46
+NMS Waiver,1,8,26603,3013,11.33
+NMS Waiver,1,9,36454,3407,9.35
+NMS Waiver,1,10,29431,2825,9.60
+NMS Waiver,1,11,43495,4236,9.74
+NMS Waiver,1,12,46295,4304,9.30
+NMS Waiver,1,13,17436,1906,10.93
+NMS Waiver,1,14,22573,3337,14.78
+NMS Waiver,1,15,35972,3790,10.54
+NMS Waiver,1,16,37786,3581,9.48
+NMS Waiver,1,17,22060,1781,8.07
+NMS Waiver,1,18,2780,360,12.95
+NMS Waiver,1,19,1,0,0.00
+NMS Waiver,2,7,483,72,14.91
+NMS Waiver,2,8,35536,3191,8.98
+NMS Waiver,2,9,47475,3928,8.27
+NMS Waiver,2,10,45109,4053,8.98
+NMS Waiver,2,11,50463,3660,7.25
+NMS Waiver,2,12,47209,3508,7.43
+NMS Waiver,2,13,16265,1537,9.45
+NMS Waiver,2,14,41472,4944,11.92
+NMS Waiver,2,15,37711,4939,13.10
+NMS Waiver,2,16,47284,4352,9.20
+NMS Waiver,2,17,29943,2483,8.29
+NMS Waiver,2,18,3405,528,15.51
+NMS Waiver,2,19,9,0,0.00
+NMS Waiver,3,7,5468,884,16.17
+NMS Waiver,3,8,30066,3612,12.01
+NMS Waiver,3,9,33194,3235,9.75
+NMS Waiver,3,10,29626,2896,9.78
+NMS Waiver,3,11,40461,2902,7.17
+NMS Waiver,3,12,45160,3049,6.75
+NMS Waiver,3,13,26714,2126,7.96
+NMS Waiver,3,14,33257,2589,7.78
+NMS Waiver,3,15,32474,2859,8.80
+NMS Waiver,3,16,44842,3480,7.76
+NMS Waiver,3,17,9560,1044,10.92
+NMS Waiver,3,18,95,3,3.16
+NMS Waiver,3,19,4,0,0.00
+NMS Waiver,3,21,2,0,0.00
+NMS Waiver,4,7,74,15,20.27
+NMS Waiver,4,8,30332,3431,11.31
+NMS Waiver,4,9,28314,2806,9.91
+NMS Waiver,4,10,22840,2441,10.69
+NMS Waiver,4,11,24285,3028,12.47
+NMS Waiver,4,12,41143,3594,8.74
+NMS Waiver,4,13,9130,847,9.28
+NMS Waiver,4,14,36830,3658,9.93
+NMS Waiver,4,15,35579,3402,9.56
+NMS Waiver,4,16,28651,3175,11.08
+NMS Waiver,4,17,12156,1297,10.67
+NMS Waiver,4,18,85,0,0.00
+NMS Waiver,5,7,80,18,22.50
+NMS Waiver,5,8,14974,1816,12.13
+NMS Waiver,5,9,21110,1623,7.69
+NMS Waiver,5,10,17009,1195,7.03
+NMS Waiver,5,11,19653,1481,7.54
+NMS Waiver,5,12,14280,1097,7.68
+NMS Waiver,5,13,910,176,19.34
+NMS Waiver,5,14,20057,1357,6.77
+NMS Waiver,5,15,20865,1106,5.30
+NMS Waiver,5,16,21070,1419,6.73
+NMS Waiver,5,17,68,5,7.35
+NMS Waiver,5,18,40,0,0.00
+NMS Waiver,6,7,5,0,0.00
+NMS Waiver,6,8,10782,1280,11.87
+NMS Waiver,6,9,20113,1597,7.94
+NMS Waiver,6,10,18390,1727,9.39
+NMS Waiver,6,11,26820,2241,8.36
+NMS Waiver,6,12,25486,1835,7.20
+NMS Waiver,6,13,697,72,10.33
+NMS Waiver,6,15,1,0,0.00
+NMS Waiver,6,18,2,0,0.00
+NMS Waiver,6,19,1,0,0.00`;
+
+const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const HOURS = Array.from({length:24}, (_,i) => i);
+
+let rows = [];
+
+function parseCSV(text){
+  const lines = text.trim().split(/\r?\n/);
+  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim());
+  return lines.slice(1).map(line => {
+    const vals = line.split(',').map(v => v.replace(/^"|"$/g,'').trim());
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = vals[i]);
+    obj.day_of_week = parseInt(obj.day_of_week);
+    obj.hour_of_day = parseInt(obj.hour_of_day);
+    obj.attempts = parseInt(obj.attempts) || 0;
+    obj.answered = parseInt(obj.answered) || 0;
+    obj.connect_rate = parseFloat(obj.connect_rate) || 0;
+    return obj;
+  });
+}
+
+function populateCampaignFilter(){
+  const campaigns = [...new Set(rows.map(r => r.campaign_name))];
+  const sel = document.getElementById('campaignFilter');
+  sel.innerHTML = '<option value="">All campaigns</option>' +
+    campaigns.map(c => `<option value="${c}">${c}</option>`).join('');
+}
+
+function colorForRate(rate, maxRate){
+  // 0 -> red, mid -> yellow, max -> green
+  const pct = maxRate > 0 ? Math.min(rate/maxRate, 1) : 0;
+  let r,g,b;
+  if(pct < 0.5){
+    const t = pct/0.5;
+    r = Math.round(255 + (255-255)*t);
+    g = Math.round(93 + (200-93)*t);
+    b = Math.round(93 + (87-93)*t);
+  } else {
+    const t = (pct-0.5)/0.5;
+    r = Math.round(255 + (61-255)*t);
+    g = Math.round(200 + (220-200)*t);
+    b = Math.round(87 + (151-87)*t);
+  }
+  return `rgb(${r},${g},${b})`;
+}
+
+function render(){
+  const campaign = document.getElementById('campaignFilter').value;
+  const filtered = rows.filter(r => campaign === '' || r.campaign_name === campaign);
+
+  // build lookup grid
+  const grid = {};
+  filtered.forEach(r => {
+    const key = r.day_of_week + '_' + r.hour_of_day;
+    if(!grid[key]) grid[key] = {attempts:0, answered:0};
+    grid[key].attempts += r.attempts;
+    grid[key].answered += r.answered;
+  });
+
+  // determine which days/hours have any data
+  const activeDays = [...new Set(filtered.map(r => r.day_of_week))].sort((a,b)=>a-b);
+  const activeHours = [...new Set(filtered.map(r => r.hour_of_day))].sort((a,b)=>a-b);
+
+  // find max connect rate for color scaling (ignore tiny-sample noise: weight by min attempts)
+  let maxRate = 0;
+  Object.values(grid).forEach(c => {
+    const rate = c.attempts > 0 ? (c.answered/c.attempts*100) : 0;
+    if(c.attempts >= 10 && rate > maxRate) maxRate = rate;
+  });
+  if(maxRate === 0) maxRate = 100;
+
+  // build table
+  const table = document.getElementById('heatmapTable');
+  let html = '<tr><th class="daylabel">Day \\\\ Hour</th>' +
+    activeHours.map(h => `<th>${h}:00</th>`).join('') + '</tr>';
+
+  activeDays.forEach(d => {
+    html += `<tr><td class="daylabel">${DAY_NAMES[d]}</td>`;
+    activeHours.forEach(h => {
+      const key = d+'_'+h;
+      const cell = grid[key];
+      if(!cell || cell.attempts === 0){
+        html += '<td class="cell empty">—</td>';
+      } else {
+        const rate = cell.answered/cell.attempts*100;
+        const bg = colorForRate(rate, maxRate);
+        html += `<td class="cell" style="background:${bg}">${rate.toFixed(1)}%<span class="attempts">${cell.attempts.toLocaleString()}</span></td>`;
+      }
+    });
+    html += '</tr>';
+  });
+
+  table.innerHTML = html;
+
+  // summary stats
+  const totalAttempts = filtered.reduce((s,r)=>s+r.attempts,0);
+  const totalAnswered = filtered.reduce((s,r)=>s+r.answered,0);
+  const overallRate = totalAttempts > 0 ? (totalAnswered/totalAttempts*100) : 0;
+
+  document.getElementById('statAttempts').textContent = totalAttempts.toLocaleString();
+  document.getElementById('statAnswered').textContent = totalAnswered.toLocaleString();
+  document.getElementById('statRate').textContent = overallRate.toFixed(2)+'%';
+
+  // best/worst tables (aggregate across campaigns by day/hour, min attempts threshold for worst)
+  const aggregated = Object.entries(grid).map(([key, val]) => {
+    const [d,h] = key.split('_').map(Number);
+    return {
+      day: d, hour: h,
+      attempts: val.attempts,
+      answered: val.answered,
+      rate: val.attempts > 0 ? (val.answered/val.attempts*100) : 0
+    };
+  });
+
+  const best = [...aggregated].sort((a,b)=>b.rate-a.rate).slice(0,5);
+  const worst = [...aggregated].filter(a=>a.attempts>=50).sort((a,b)=>a.rate-b.rate).slice(0,5);
+
+  document.getElementById('statBest').textContent = best.length
+    ? `${DAY_NAMES[best[0].day]} ${best[0].hour}:00 (${best[0].rate.toFixed(1)}%)`
+    : '-';
+
+  document.querySelector('#bestTable tbody').innerHTML = best.map(r => `
+    <tr>
+      <td>${DAY_NAMES[r.day]}</td>
+      <td>${r.hour}:00</td>
+      <td>${r.attempts.toLocaleString()}</td>
+      <td>${r.answered.toLocaleString()}</td>
+      <td class="rank-best">${r.rate.toFixed(2)}%</td>
+    </tr>
+  `).join('');
+
+  document.querySelector('#worstTable tbody').innerHTML = worst.map(r => `
+    <tr>
+      <td>${DAY_NAMES[r.day]}</td>
+      <td>${r.hour}:00</td>
+      <td>${r.attempts.toLocaleString()}</td>
+      <td>${r.answered.toLocaleString()}</td>
+      <td class="rank-worst">${r.rate.toFixed(2)}%</td>
+    </tr>
+  `).join('');
+}
+
+function setStatus(msg, isError){
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.style.color = isError ? 'var(--bad)' : 'var(--muted)';
+}
+
+async function reload(){
+  if(!CSV_URL){
+    rows = parseCSV(FALLBACK_CSV);
+    setStatus('Loaded embedded data (set CSV_URL to load live from GitHub).');
+    populateCampaignFilter();
+    render();
+    return;
+  }
+  setStatus('Loading from ' + CSV_URL + ' ...');
+  try{
+    const res = await fetch(CSV_URL + '?t=' + Date.now());
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    rows = parseCSV(text);
+    setStatus('Loaded ' + rows.length + ' rows from GitHub at ' + new Date().toLocaleTimeString());
+    populateCampaignFilter();
+    render();
+  }catch(err){
+    rows = parseCSV(FALLBACK_CSV);
+    setStatus('Could not load CSV_URL (' + err.message + '). Showing embedded fallback data.', true);
+    populateCampaignFilter();
+    render();
+  }
+}
+
+document.getElementById('campaignFilter').addEventListener('change', render);
+
+reload();
+</script>
+
+</body>
+</html>
