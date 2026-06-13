@@ -134,6 +134,57 @@
     margin-top:1px;
   }
     #outcomeChart{display:block;width:100%;}
+  .ticker-wrap{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    overflow:hidden;
+    margin-bottom:20px;
+  }
+  .ticker-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:12px 16px;
+    border-bottom:1px solid var(--line);
+    gap:16px;
+  }
+  .ticker-row:last-child{border-bottom:none;}
+  .ticker-hour{
+    font-family:var(--mono);
+    font-weight:700;
+    font-size:14px;
+    width:60px;
+    flex-shrink:0;
+  }
+  .ticker-spark{
+    flex:1;
+    min-width:0;
+  }
+  .ticker-spark svg{display:block;width:100%;height:32px;}
+  .ticker-value{
+    font-family:var(--mono);
+    font-weight:700;
+    font-size:16px;
+    width:60px;
+    text-align:right;
+    flex-shrink:0;
+  }
+  .ticker-change{
+    font-family:var(--mono);
+    font-weight:700;
+    font-size:13px;
+    width:90px;
+    text-align:right;
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    gap:4px;
+    flex-shrink:0;
+  }
+  .ticker-up{color:var(--good);}
+  .ticker-down{color:var(--bad);}
+  .ticker-flat{color:var(--muted);}
   .band-legend{display:flex;gap:20px;justify-content:center;flex-wrap:wrap;}
   .legend-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);}
   .legend-swatch{width:14px;height:14px;border-radius:3px;flex-shrink:0;}
@@ -211,6 +262,9 @@
   </div>
 </div>
 
+<h2>Sales Trend by Hour</h2>
+<div class="ticker-wrap" id="salesTicker"></div>
+
 <h2>Outcome Quality by Hour</h2>
 <div class="heatmap-wrap">
   <canvas id="outcomeChart"></canvas>
@@ -243,10 +297,10 @@
 // ---- CONFIG ----
 // Point this at the raw GitHub URL of your BTTC CSV, e.g.
 // https://raw.githubusercontent.com/<user>/<repo>/main/BTTC.csv
-const CSV_URL = "https://raw.githubusercontent.com/I50N/BTTC_Dashboard/refs/heads/main/BTTC.csv";
+const CSV_URL = "";
 
 // Outcome mix by hour - point this at your Outcome_Report.csv raw GitHub URL
-const OUTCOME_CSV_URL = "https://raw.githubusercontent.com/I50N/BTTC_Dashboard/refs/heads/main/Outcome_Report.csv";
+const OUTCOME_CSV_URL = "";
 
 const FALLBACK_CSV = `campaign_name,day_of_week,hour_of_day,attempts,answered,connect_rate
 NMS Waiver,0,9,1,0,0.00
@@ -350,12 +404,65 @@ function parseOutcomeCSV(text){
     headers.forEach((h,i) => obj[h] = vals[i]);
     obj.hour_of_day = parseInt(obj.hour_of_day);
     obj.attempts = parseInt(obj.attempts) || 0;
+    obj.sales = parseInt(obj.sales) || 0;
     obj.answered = parseInt(obj.answered) || 0;
     obj.sale_pct_of_connects = parseFloat(obj.sale_pct_of_connects) || 0;
     obj.negative_pct_of_connects = parseFloat(obj.negative_pct_of_connects) || 0;
     obj.connect_rate = obj.attempts > 0 ? (obj.answered/obj.attempts*100) : 0;
     return obj;
   });
+}
+
+function sparkline(values, color){
+  const w = 100, h = 32, pad = 3;
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = (max-min) || 1;
+  const step = (w-pad*2) / (values.length-1 || 1);
+  const points = values.map((v,i) => {
+    const x = pad + i*step;
+    const y = h - pad - ((v-min)/range)*(h-pad*2);
+    return `${x},${y}`;
+  }).join(' ');
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <polyline points="${points}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
+}
+
+function renderSalesTicker(){
+  const campaign = document.getElementById('campaignFilter').value;
+  let data = outcomeRows
+    .filter(r => campaign === '' || r.campaign_name === campaign)
+    .filter(r => r.hour_of_day >= DIAL_START_HOUR && r.hour_of_day <= DIAL_END_HOUR)
+    .sort((a,b) => a.hour_of_day - b.hour_of_day);
+
+  const wrap = document.getElementById('salesTicker');
+  if(data.length === 0){ wrap.innerHTML = ''; return; }
+
+  const salesValues = data.map(r => r.sales);
+
+  wrap.innerHTML = data.map((r,i) => {
+    const prev = i > 0 ? data[i-1].sales : r.sales;
+    const diff = r.sales - prev;
+    const pct = prev > 0 ? (diff/prev*100) : (r.sales > 0 ? 100 : 0);
+
+    let cls = 'ticker-flat', arrow = '▬', sign = '';
+    if(diff > 0){ cls='ticker-up'; arrow='▲'; sign='+'; }
+    else if(diff < 0){ cls='ticker-down'; arrow='▼'; sign=''; }
+
+    const sparkColor = cls === 'ticker-up' ? '#3ddc97' : cls === 'ticker-down' ? '#ff5d5d' : '#8aa0ab';
+    // sparkline shows trailing window up to and including this hour (min 2 points)
+    const windowVals = salesValues.slice(0, i+1).slice(-6);
+    const spark = windowVals.length > 1 ? sparkline(windowVals, sparkColor) : '';
+
+    const changeLabel = i === 0 ? '—' : `${arrow} ${sign}${diff} (${sign}${pct.toFixed(1)}%)`;
+
+    return `<div class="ticker-row">
+      <div class="ticker-hour">${r.hour_of_day}:00</div>
+      <div class="ticker-spark">${spark}</div>
+      <div class="ticker-value">${r.sales}</div>
+      <div class="ticker-change ${cls}">${changeLabel}</div>
+    </div>`;
+  }).join('');
 }
 
 function drawOutcomeChart(){
@@ -588,6 +695,7 @@ function render(){
   `).join('');
 
   drawOutcomeChart();
+  renderSalesTicker();
 }
 
 function setStatus(msg, isError){
