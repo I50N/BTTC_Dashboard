@@ -148,6 +148,7 @@
     padding:12px 16px;
     border-bottom:1px solid var(--line);
     gap:16px;
+    flex-wrap:wrap;
   }
   .ticker-row:last-child{border-bottom:none;}
   .ticker-hour{
@@ -185,6 +186,36 @@
   .ticker-up{color:var(--good);}
   .ticker-down{color:var(--bad);}
   .ticker-flat{color:var(--muted);}
+  .ticker-breakdown{
+    display:flex;
+    height:14px;
+    width:140px;
+    border-radius:4px;
+    overflow:hidden;
+    flex-shrink:0;
+    background:var(--panel-2);
+  }
+  .bd-segment{height:100%;}
+  .ticker-breakdown-labels{
+    display:flex;
+    flex-direction:column;
+    gap:1px;
+    font-size:10px;
+    font-family:var(--mono);
+    width:130px;
+    flex-shrink:0;
+    line-height:1.3;
+  }
+  .sales-type-legend{
+    display:flex;
+    gap:14px;
+    flex-wrap:wrap;
+    padding:12px 16px;
+    border-top:1px solid var(--line);
+    background:var(--panel-2);
+  }
+  .sales-type-legend .legend-row{font-size:11px;}
+  .sales-type-legend .legend-swatch{width:10px;height:10px;}
   .band-legend{display:flex;gap:20px;justify-content:center;flex-wrap:wrap;}
   .legend-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);}
   .legend-swatch{width:14px;height:14px;border-radius:3px;flex-shrink:0;}
@@ -263,7 +294,10 @@
 </div>
 
 <h2>Sales Trend by Hour</h2>
-<div class="ticker-wrap" id="salesTicker"></div>
+<div class="ticker-wrap">
+  <div id="salesTicker"></div>
+  <div class="sales-type-legend" id="salesTypeLegend"></div>
+</div>
 
 <h2>Outcome Quality by Hour</h2>
 <div class="heatmap-wrap">
@@ -297,10 +331,13 @@
 // ---- CONFIG ----
 // Point this at the raw GitHub URL of your BTTC CSV, e.g.
 // https://raw.githubusercontent.com/<user>/<repo>/main/BTTC.csv
-const CSV_URL = "https://raw.githubusercontent.com/I50N/BTTC_Dashboard/refs/heads/main/BTTC.csv";
+const CSV_URL = "";
 
 // Outcome mix by hour - point this at your Outcome_Report.csv raw GitHub URL
-const OUTCOME_CSV_URL = "https://raw.githubusercontent.com/I50N/BTTC_Dashboard/refs/heads/main/Outcome_Report.csv";
+const OUTCOME_CSV_URL = "";
+
+// Sales type breakdown by hour - point this at your Sales_Report.csv raw GitHub URL
+const SALES_BREAKDOWN_CSV_URL = "";
 
 const FALLBACK_CSV = `campaign_name,day_of_week,hour_of_day,attempts,answered,connect_rate
 NMS Waiver,0,9,1,0,0.00
@@ -393,6 +430,89 @@ NMS Waiver,16,179633,269,5236,4304,16007,1.68,26.89
 NMS Waiver,17,73787,73,1754,2125,6610,1.10,32.15
 NMS Waiver,18,6407,0,4,886,891,0.00,99.44`;
 
+const SALES_BREAKDOWN_FALLBACK_CSV = `campaign_name,hour_of_day,sale_type,sale_type_name,sales
+NMS Waiver,8,SALEWAI,SALE_WAIVER,363
+NMS Waiver,8,SALEONE,Sale 1 Premium,28
+NMS Waiver,8,SALELOI,SALE_LOI,20
+NMS Waiver,8,SALEF,SALE_FUNERAL,15
+NMS Waiver,8,SALETWO,Sale 2 Premium,3
+NMS Waiver,9,SALEWAI,SALE_WAIVER,319
+NMS Waiver,9,SALEONE,Sale 1 Premium,31
+NMS Waiver,9,SALELOI,SALE_LOI,25
+NMS Waiver,9,SALEF,SALE_FUNERAL,9
+NMS Waiver,9,SALETHRE,Sale 3 Premium,3
+NMS Waiver,9,SALETWO,Sale 2 Premium,3
+NMS Waiver,9,RFF,Referral Sale Funeral,1
+NMS Waiver,10,SALEWAI,SALE_WAIVER,241
+NMS Waiver,10,SALEONE,Sale 1 Premium,24
+NMS Waiver,10,SALELOI,SALE_LOI,18
+NMS Waiver,10,SALEF,SALE_FUNERAL,6
+NMS Waiver,10,SALETWO,Sale 2 Premium,2
+NMS Waiver,11,SALEWAI,SALE_WAIVER,256
+NMS Waiver,11,SALEONE,Sale 1 Premium,23
+NMS Waiver,11,SALELOI,SALE_LOI,11
+NMS Waiver,11,SALEF,SALE_FUNERAL,11
+NMS Waiver,11,SALETWO,Sale 2 Premium,2
+NMS Waiver,12,SALEWAI,SALE_WAIVER,233
+NMS Waiver,12,SALEONE,Sale 1 Premium,26
+NMS Waiver,12,SALELOI,SALE_LOI,11
+NMS Waiver,12,SALEF,SALE_FUNERAL,9
+NMS Waiver,12,SALETWO,Sale 2 Premium,2
+NMS Waiver,12,SALEFOUR,Sale 4 + Premium,1
+NMS Waiver,12,RFD,Referral Sale Device,1
+NMS Waiver,13,SALEWAI,SALE_WAIVER,41
+NMS Waiver,13,SALEF,SALE_FUNERAL,4
+NMS Waiver,13,SALELOI,SALE_LOI,2
+NMS Waiver,13,SALEONE,Sale 1 Premium,2
+NMS Waiver,14,SALEWAI,SALE_WAIVER,256
+NMS Waiver,14,SALEONE,Sale 1 Premium,20
+NMS Waiver,14,SALELOI,SALE_LOI,11
+NMS Waiver,14,SALEF,SALE_FUNERAL,8
+NMS Waiver,14,SALETWO,Sale 2 Premium,3
+NMS Waiver,15,SALEWAI,SALE_WAIVER,231
+NMS Waiver,15,SALEONE,Sale 1 Premium,25
+NMS Waiver,15,SALELOI,SALE_LOI,13
+NMS Waiver,15,SALEF,SALE_FUNERAL,5
+NMS Waiver,15,SALETWO,Sale 2 Premium,2
+NMS Waiver,15,SALETHRE,Sale 3 Premium,1
+NMS Waiver,16,SALEWAI,SALE_WAIVER,237
+NMS Waiver,16,SALEONE,Sale 1 Premium,15
+NMS Waiver,16,SALELOI,SALE_LOI,11
+NMS Waiver,16,SALEF,SALE_FUNERAL,6
+NMS Waiver,17,SALEWAI,SALE_WAIVER,57
+NMS Waiver,17,SALELOI,SALE_LOI,7
+NMS Waiver,17,SALEONE,Sale 1 Premium,6
+NMS Waiver,17,SALEF,SALE_FUNERAL,1
+NMS Waiver,17,SALETWO,Sale 2 Premium,1
+NMS Waiver,17,RFF,Referral Sale Funeral,1`;
+
+let salesBreakdownRows = [];
+
+function parseSalesBreakdownCSV(text){
+  const lines = text.trim().split(/\r?\n/);
+  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim());
+  return lines.slice(1).map(line => {
+    const vals = line.split(',').map(v => v.replace(/^"|"$/g,'').trim());
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = vals[i]);
+    obj.hour_of_day = parseInt(obj.hour_of_day);
+    obj.sales = parseInt(obj.sales) || 0;
+    return obj;
+  });
+}
+
+// fixed color palette for sale types (cycled)
+const SALE_TYPE_COLORS = ['#3ddc97','#ffc857','#5b9bff','#ff8c42','#c77dff','#ff5d5d','#4dd0e1','#a3e635'];
+let saleTypeColorMap = {};
+
+function getSaleTypeColor(type){
+  if(!saleTypeColorMap[type]){
+    const idx = Object.keys(saleTypeColorMap).length % SALE_TYPE_COLORS.length;
+    saleTypeColorMap[type] = SALE_TYPE_COLORS[idx];
+  }
+  return saleTypeColorMap[type];
+}
+
 let outcomeRows = [];
 
 function parseOutcomeCSV(text){
@@ -435,6 +555,13 @@ function renderSalesTicker(){
     .filter(r => r.hour_of_day >= DIAL_START_HOUR && r.hour_of_day <= DIAL_END_HOUR)
     .sort((a,b) => a.hour_of_day - b.hour_of_day);
 
+  const breakdown = salesBreakdownRows.filter(r => campaign === '' || r.campaign_name === campaign);
+
+  // establish consistent color order based on overall sale volume
+  const typeTotals = {};
+  breakdown.forEach(r => { typeTotals[r.sale_type_name] = (typeTotals[r.sale_type_name]||0) + r.sales; });
+  Object.keys(typeTotals).sort((a,b)=>typeTotals[b]-typeTotals[a]).forEach(getSaleTypeColor);
+
   const wrap = document.getElementById('salesTicker');
   if(data.length === 0){ wrap.innerHTML = ''; return; }
 
@@ -450,19 +577,49 @@ function renderSalesTicker(){
     else if(diff < 0){ cls='ticker-down'; arrow='▼'; sign=''; }
 
     const sparkColor = cls === 'ticker-up' ? '#3ddc97' : cls === 'ticker-down' ? '#ff5d5d' : '#8aa0ab';
-    // sparkline shows trailing window up to and including this hour (min 2 points)
     const windowVals = salesValues.slice(0, i+1).slice(-6);
     const spark = windowVals.length > 1 ? sparkline(windowVals, sparkColor) : '';
 
     const changeLabel = i === 0 ? '—' : `${arrow} ${sign}${diff} (${sign}${pct.toFixed(1)}%)`;
+
+    // breakdown bar for this hour
+    const hourBreakdown = breakdown.filter(b => b.hour_of_day === r.hour_of_day)
+      .sort((a,b) => b.sales - a.sales);
+    const hourTotal = hourBreakdown.reduce((s,b)=>s+b.sales,0) || 1;
+    const segments = hourBreakdown.map(b => {
+      const widthPct = (b.sales/hourTotal*100).toFixed(2);
+      const color = getSaleTypeColor(b.sale_type_name);
+      return `<div class="bd-segment" style="width:${widthPct}%;background:${color}" title="${b.sale_type_name}: ${b.sales}"></div>`;
+    }).join('');
+
+    const breakdownLabels = hourBreakdown.map(b => {
+      const color = getSaleTypeColor(b.sale_type_name);
+      return `<span class="bd-label" style="color:${color}">${b.sale_type_name}: ${b.sales}</span>`;
+    }).join('');
 
     return `<div class="ticker-row">
       <div class="ticker-hour">${r.hour_of_day}:00</div>
       <div class="ticker-spark">${spark}</div>
       <div class="ticker-value">${r.sales}</div>
       <div class="ticker-change ${cls}">${changeLabel}</div>
+      <div class="ticker-breakdown">${segments}</div>
+      <div class="ticker-breakdown-labels">${breakdownLabels}</div>
     </div>`;
   }).join('');
+
+  renderSalesTypeLegend();
+}
+
+function renderSalesTypeLegend(){
+  const legendEl = document.getElementById('salesTypeLegend');
+  if(!legendEl) return;
+  const types = Object.keys(saleTypeColorMap);
+  legendEl.innerHTML = types.map(t => `
+    <div class="legend-row">
+      <div class="legend-swatch" style="background:${saleTypeColorMap[t]}"></div>
+      <div class="legend-label">${t}</div>
+    </div>
+  `).join('');
 }
 
 function drawOutcomeChart(){
@@ -706,6 +863,13 @@ function setStatus(msg, isError){
 
 async function reload(){
   outcomeRows = parseOutcomeCSV(OUTCOME_FALLBACK_CSV);
+  salesBreakdownRows = parseSalesBreakdownCSV(SALES_BREAKDOWN_FALLBACK_CSV);
+  if(SALES_BREAKDOWN_CSV_URL){
+    try{
+      const res = await fetch(SALES_BREAKDOWN_CSV_URL + '?t=' + Date.now());
+      if(res.ok) salesBreakdownRows = parseSalesBreakdownCSV(await res.text());
+    }catch(e){ /* fall back to embedded */ }
+  }
   if(OUTCOME_CSV_URL){
     try{
       const res = await fetch(OUTCOME_CSV_URL + '?t=' + Date.now());
