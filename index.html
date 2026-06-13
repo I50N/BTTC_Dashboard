@@ -133,6 +133,7 @@
     opacity:0.7;
     margin-top:1px;
   }
+    #outcomeChart{display:block;width:100%;}
   .band-legend{display:flex;gap:20px;justify-content:center;flex-wrap:wrap;}
   .legend-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);}
   .legend-swatch{width:14px;height:14px;border-radius:3px;flex-shrink:0;}
@@ -242,10 +243,10 @@
 // ---- CONFIG ----
 // Point this at the raw GitHub URL of your BTTC CSV, e.g.
 // https://raw.githubusercontent.com/<user>/<repo>/main/BTTC.csv
-const CSV_URL = "https://raw.githubusercontent.com/I50N/BTTC_Dashboard/refs/heads/main/BTTC.csv";
+const CSV_URL = "";
 
 // Outcome mix by hour - point this at your Outcome_Report.csv raw GitHub URL
-const OUTCOME_CSV_URL = "https://raw.githubusercontent.com/I50N/BTTC_Dashboard/refs/heads/main/Outcome_Report.csv";
+const OUTCOME_CSV_URL = "";
 
 const FALLBACK_CSV = `campaign_name,day_of_week,hour_of_day,attempts,answered,connect_rate
 NMS Waiver,0,9,1,0,0.00
@@ -367,7 +368,7 @@ function drawOutcomeChart(){
   const canvas = document.getElementById('outcomeChart');
   const ctx = canvas.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
-  const cssW = canvas.clientWidth || 760;
+  const cssW = canvas.parentElement.clientWidth - 32 || 760;
   const cssH = 300;
   canvas.width = cssW * dpr;
   canvas.height = cssH * dpr;
